@@ -1,3 +1,3 @@
 # ble_practice
-test
-test2
+
+Android Bluetooth BLE client/server practice.
