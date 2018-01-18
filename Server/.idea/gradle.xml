@@ -7,8 +7,8 @@
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="modules">
           <set>
-            <option value="/data1/fastbootA/AndroidStudioProject/ble_test/ble_practice/Server" />
-            <option value="/data1/fastbootA/AndroidStudioProject/ble_test/ble_practice/Server/app" />
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/app" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />
