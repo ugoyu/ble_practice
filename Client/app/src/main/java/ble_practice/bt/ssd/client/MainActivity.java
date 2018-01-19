@@ -6,29 +6,104 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
+import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
+    private final String TAG = "Test Client";
 
-    BluetoothAdapter    mAdapter;
-    BluetoothLeScanner  mScanner;
+    private Context             mContext;
+    private BluetoothAdapter    mAdapter;
+    private BluetoothLeScanner  mScanner;
+
+    private boolean             mScanning;
+
+    private Map<Button, BluetoothDevice> mScanResults;
+
+
+    /* UI items */
+    Button btnStartScan;
+    LinearLayout llScanResult;
+
+    void initView() {
+        btnStartScan = (Button)findViewById(R.id.btn_startscan);
+        btnStartScan.setOnClickListener(clStartScan);
+
+        llScanResult = (LinearLayout)findViewById(R.id.ll_scanResult);
+    }
+
+    View.OnClickListener clScanResult = new View.OnClickListener() {
+        @Override
+        public void onClick(View view) {
+            Button btn = (Button)view;
+            BluetoothDevice device = mScanResults.get(btn);
+
+            Log.e(TAG, device.getAddress());
+        }
+    };
+
+    View.OnClickListener clStartScan = new View.OnClickListener() {
+        @Override
+        public void onClick(View view) {
+            turnOnBluetooth();
+            Button btn = (Button)view;
+
+            if(mScanning) {
+                mScanner.stopScan(mScannerCallback);
+                btn.setText("start Scan");
+                mScanning = false;
+            } else {
+                ScanSettings settings = new ScanSettings.Builder()
+                        .setLegacy(false)
+                        .build();
+
+                llScanResult.removeAllViews();
+                mScanResults.clear();
+                mScanner.startScan(null, settings, mScannerCallback);
+                mScanning = true;
+                btn.setText("stop Scan");
+            }
+        }
+    };
+
+    void turnOnBluetooth() {
+        if (mAdapter.getState() != BluetoothAdapter.STATE_ON)
+            mAdapter.enable();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        mContext = this;
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mScanner = mAdapter.getBluetoothLeScanner();
+        mScanResults = new HashMap<>();
+
+        mScanning = false;
+
+        //Initialize UI
+        initView();
 
         //Request location permission for BLE events
         if (ContextCompat.checkSelfPermission(this,
@@ -39,15 +114,43 @@ public class MainActivity extends AppCompatActivity {
         turnOnBluetooth();
     }
 
-    void turnOnBluetooth() {
-        if (mAdapter.getState() != BluetoothAdapter.STATE_ON)
-            mAdapter.enable();
+    String parseScanResult(ScanResult result) {
+        String isLegacy = result.isLegacy() ? "Legacy | " : "Extend | ";
+        String deviceName = "";
+        if (result.getDevice().getName() != null)
+            deviceName = " (" + result.getDevice().getName() + ")";
+
+        return (isLegacy + result.getDevice().getAddress() + deviceName + "\r\n"
+                + "RSSI:" + result.getRssi());
     }
 
     ScanCallback mScannerCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
+            BluetoothDevice device = result.getDevice();
+
+            synchronized (mScanResults) {
+                if (!mScanResults.containsValue(device)) {
+                    /* Create button and add device to hashmap */
+                    Button btn = new Button(mContext);
+                    btn.setGravity(Gravity.LEFT);
+                    btn.setText(parseScanResult(result));
+                    btn.setBackgroundResource(R.drawable.button_style);
+                    btn.setOnClickListener(clScanResult);
+                    llScanResult.addView(btn);
+
+                    mScanResults.put(btn, device);
+                } else {
+                    Button btn;
+                    for (Object o : mScanResults.keySet()) {
+                        if(mScanResults.get(o).getAddress().equals(device.getAddress())) {
+                            btn = (Button) o;
+                            btn.setText(parseScanResult(result));
+                        }
+                    }
+                }
+            }
         }
 
         @Override

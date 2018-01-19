@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file:///data1/fastbootA/AndroidStudioProject/ble_test/ble_practice/Client/Client.iml" filepath="/data1/fastbootA/AndroidStudioProject/ble_test/ble_practice/Client/Client.iml" />
+      <module fileurl="file://$PROJECT_DIR$/Client.iml" filepath="$PROJECT_DIR$/Client.iml" />
       <module fileurl="file:///data1/fastbootA/AndroidStudioProject/ble_test/ble_practice/Client/app/app.iml" filepath="/data1/fastbootA/AndroidStudioProject/ble_test/ble_practice/Client/app/app.iml" />
     </modules>
   </component>
