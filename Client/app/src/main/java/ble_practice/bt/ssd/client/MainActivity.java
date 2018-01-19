@@ -9,11 +9,11 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -23,6 +23,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 
 import java.util.HashMap;
 import java.util.List;
@@ -37,8 +38,8 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean             mScanning;
 
-    private Map<Button, BluetoothDevice> mScanResults;
-
+    private Map<Button, BluetoothDevice>        mScanResults;
+    private Map<BluetoothDevice, ScanRecord>    mScanRecords;
 
     /* UI items */
     Button btnStartScan;
@@ -56,8 +57,13 @@ public class MainActivity extends AppCompatActivity {
         public void onClick(View view) {
             Button btn = (Button)view;
             BluetoothDevice device = mScanResults.get(btn);
+            ScanRecord record = mScanRecords.get(device);
 
-            Log.e(TAG, device.getAddress());
+            /* Demo to show how to get info from device record */
+            String text = "Name:" + record.getDeviceName() + "\r\n"
+                        + "Address:" + device.getAddress();
+            Toast toast = Toast.makeText(mContext, text, Toast.LENGTH_SHORT);
+            toast.show();
         }
     };
 
@@ -99,6 +105,7 @@ public class MainActivity extends AppCompatActivity {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mScanner = mAdapter.getBluetoothLeScanner();
         mScanResults = new HashMap<>();
+        mScanRecords = new HashMap<>();
 
         mScanning = false;
 
@@ -132,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
 
             synchronized (mScanResults) {
                 if (!mScanResults.containsValue(device)) {
-                    /* Create button and add device to hashmap */
+                    /* Create button and add device to HashMap */
                     Button btn = new Button(mContext);
                     btn.setGravity(Gravity.LEFT);
                     btn.setText(parseScanResult(result));
@@ -140,13 +147,25 @@ public class MainActivity extends AppCompatActivity {
                     btn.setOnClickListener(clScanResult);
                     llScanResult.addView(btn);
 
+                    /* Save scanRecord and device info */
                     mScanResults.put(btn, device);
+                    mScanRecords.put(device, result.getScanRecord());
                 } else {
                     Button btn;
                     for (Object o : mScanResults.keySet()) {
-                        if(mScanResults.get(o).getAddress().equals(device.getAddress())) {
-                            btn = (Button) o;
+                        btn = (Button) o;
+                        BluetoothDevice preDev = mScanResults.get(btn);
+
+                        if(preDev.getAddress().equals(device.getAddress())) {
+                            /* Update new scanRecord and device info to HashMap */
+                            ScanRecord record = mScanRecords.get(preDev);
+                            mScanRecords.remove(preDev);
+                            mScanRecords.put(device, record);
+                            mScanResults.replace(btn, device);
+
+                            /* Update button text */
                             btn.setText(parseScanResult(result));
+                            break;
                         }
                     }
                 }
