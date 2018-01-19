@@ -2,6 +2,7 @@ package ble_practice.bt.ssd.server;
 
 import android.Manifest;
 
+import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -97,5 +98,11 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onAdvertisingStateChanged(boolean state) {
         btn_adv.setText(state ? "stop" : "start");
+    }
+
+    @Override
+    public void onConnectStateChanged(BluetoothDevice device, int connectionState) {
+
+
     }
 }
