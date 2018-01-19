@@ -1,54 +1,33 @@
 package ble_practice.bt.ssd.server;
 
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.le.AdvertiseCallback;
-import android.bluetooth.le.AdvertiseData;
-import android.bluetooth.le.AdvertiseSettings;
-import android.bluetooth.le.BluetoothLeAdvertiser;
+import android.Manifest;
+
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import android.os.IBinder;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.Toast;
 
-public class MainActivity extends AppCompatActivity {
+
+public class MainActivity extends AppCompatActivity
+        implements AdvertiserWrapperService.AdvertiserEventListener {
 
 
     private static final String LOG_TAG = "ted_log";
 
-    BluetoothAdapter mBluetoothAdapter;
-    BluetoothLeAdvertiser mBluetoothLeAdvertiser;
+
     Button btn_adv;
-    boolean mAdvertising = false;
-
-    private AdvertiseData creatAdvertiseData(byte[] data) {
-        AdvertiseData.Builder mDataBuilder = new AdvertiseData.Builder();
-        mDataBuilder.addManufacturerData(0x01AC, data);
-        return mDataBuilder.build();
-    }
-
-    private AdvertiseSettings createAdvertiseSettings(boolean connectable, int timeout) {
-        AdvertiseSettings.Builder mSettingBuilder = new AdvertiseSettings.Builder();
-        mSettingBuilder.setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY);
-        mSettingBuilder.setConnectable(connectable);
-        mSettingBuilder.setTimeout(timeout);
-        return mSettingBuilder.build();
-    }
 
 
-    public void startAdvertising() {
-        byte[] broadcatData = {0x34, 0x56};
-        mBluetoothLeAdvertiser.startAdvertising(
-                createAdvertiseSettings(true, 0),
-                creatAdvertiseData(broadcatData),
-                mAdvertiseStartCallback);
-    }
-
-    public void stopAdvertising() {
-        Log.d(LOG_TAG, "stop---------");
-        mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseStopCallback);
-    }
+    AdvertiserWrapperService mAdvertiserWrapper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,10 +35,34 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         findView();
         setListener();
-        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        mBluetoothLeAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
 
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 100);
+
+
+        Intent intent = new Intent(this, AdvertiserWrapperService.class);
+        startService(intent);
+        Log.d(LOG_TAG, "----");
     }
+
+    private ServiceConnection mConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
+            Log.d(LOG_TAG, "AdvertiserWrapperService connected");
+            mAdvertiserWrapper = ((AdvertiserWrapperService.LocalBinder) iBinder).getService();
+
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mAdvertiserWrapper = null;
+        }
+    };
+
+
+
+
 
     void findView() {
         btn_adv = (Button) findViewById(R.id.btn_adv);
@@ -70,48 +73,23 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Log.d(LOG_TAG, "OWO");
-                if (!mAdvertising)
-                    startAdvertising();
-                else
-                    stopAdvertising();
+                boolean isAdvertising = mAdvertiserWrapper.isAdvertising();
+
+                if (!isAdvertising) {
+                    mAdvertiserWrapper.startAdvertisingSet();
+                }
+                else {
+                    mAdvertiserWrapper.stopAdvertisingSet();
+                }
             }
         });
 
 
     }
 
-    private AdvertiseCallback mAdvertiseStartCallback = new AdvertiseCallback() {
-        @Override
-        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-            super.onStartSuccess(settingsInEffect);
-            mAdvertising = true;
-            btn_adv.setText("stop");
-            Log.d(LOG_TAG, "start advertising successfully");
-        }
 
-        @Override
-        public void onStartFailure(int errorCode) {
-            super.onStartFailure(errorCode);
-
-            Log.d(LOG_TAG, "start advertising unsuccessfully");
-        }
-    };
-
-    private AdvertiseCallback mAdvertiseStopCallback = new AdvertiseCallback() {
-        @Override
-        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-            super.onStartSuccess(settingsInEffect);
-            mAdvertising = false;
-            btn_adv.setText("start");
-            Log.d(LOG_TAG, "stop advertising successfully");
-        }
-
-        @Override
-        public void onStartFailure(int errorCode) {
-            super.onStartFailure(errorCode);
-
-            Log.d(LOG_TAG, "stop advertising unsuccessfully");
-        }
-    };
-
+    @Override
+    public void onAdvertisingStateChanged(boolean state) {
+        btn_adv.setText((!state) ? "stop" : "start");
+    }
 }
