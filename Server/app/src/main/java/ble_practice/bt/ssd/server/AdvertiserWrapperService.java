@@ -15,6 +15,7 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 
+import android.os.ParcelUuid;
 import android.util.Log;
 
 /**
@@ -22,11 +23,16 @@ import android.util.Log;
  */
 
 public class AdvertiserWrapperService extends Service {
+
+    public final ParcelUuid UUID = ParcelUuid.fromString("0000ffe1-0000-1000-8000-123456789000");
+
     private final String LOG_TAG = "AdvertiserWrapperService";
     final BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     BluetoothLeAdvertiser mBluetoothLeAdvertiser;
     AdvertiserEventListener mEventListener;
     boolean mAdvertising = false;
+
+
 
 
     @Override
@@ -36,6 +42,7 @@ public class AdvertiserWrapperService extends Service {
         mBluetoothLeAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
 
     }
+
     @Override
     public void onDestroy() {
         Log.d(LOG_TAG, "onDestroy()");
@@ -44,11 +51,7 @@ public class AdvertiserWrapperService extends Service {
     }
 
 
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(LOG_TAG, "onStartCommand");
-        return super.onStartCommand(intent, flags, startId);
-    }
+
 
     public void setEventListener(AdvertiserEventListener eventListener) {
         mEventListener = eventListener;
@@ -71,8 +74,10 @@ public class AdvertiserWrapperService extends Service {
     }
 
     private AdvertiseData creatAdvertiseData() {
+        byte data[] = "TED".getBytes();
         AdvertiseData.Builder mDataBuilder = new AdvertiseData.Builder();
         mDataBuilder.setIncludeDeviceName(true);
+        mDataBuilder.addServiceData(UUID, data);
         return mDataBuilder.build();
     }
 
@@ -111,14 +116,16 @@ public class AdvertiserWrapperService extends Service {
         public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
             super.onAdvertisingSetStarted(advertisingSet, txPower, status);
             Log.d(LOG_TAG, "start advertising set successfully");
-            mEventListener.onAdvertisingStateChanged(true);
+            mAdvertising = true;
+            mEventListener.onAdvertisingStateChanged(mAdvertising);
         }
 
         @Override
         public void onAdvertisingSetStopped(AdvertisingSet advertisingSet) {
             Log.d(LOG_TAG, "stop advertising set successfully");
             super.onAdvertisingSetStopped(advertisingSet);
-            mEventListener.onAdvertisingStateChanged(false);
+            mAdvertising = false;
+            mEventListener.onAdvertisingStateChanged(mAdvertising);
         }
     };
 

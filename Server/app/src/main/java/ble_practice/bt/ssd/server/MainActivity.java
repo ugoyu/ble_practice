@@ -42,8 +42,14 @@ public class MainActivity extends AppCompatActivity
 
 
         Intent intent = new Intent(this, AdvertiserWrapperService.class);
-        startService(intent);
+        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
         Log.d(LOG_TAG, "----");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unbindService(mConnection);
     }
 
     private ServiceConnection mConnection = new ServiceConnection() {
@@ -51,7 +57,7 @@ public class MainActivity extends AppCompatActivity
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             Log.d(LOG_TAG, "AdvertiserWrapperService connected");
             mAdvertiserWrapper = ((AdvertiserWrapperService.LocalBinder) iBinder).getService();
-
+            mAdvertiserWrapper.setEventListener(MainActivity.this);
         }
 
         @Override
@@ -72,7 +78,7 @@ public class MainActivity extends AppCompatActivity
         btn_adv.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Log.d(LOG_TAG, "OWO");
+
                 boolean isAdvertising = mAdvertiserWrapper.isAdvertising();
 
                 if (!isAdvertising) {
@@ -90,6 +96,6 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onAdvertisingStateChanged(boolean state) {
-        btn_adv.setText((!state) ? "stop" : "start");
+        btn_adv.setText(state ? "stop" : "start");
     }
 }
