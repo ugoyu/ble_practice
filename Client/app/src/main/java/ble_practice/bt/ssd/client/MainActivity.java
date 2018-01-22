@@ -7,13 +7,22 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.Message;
+import android.os.ParcelUuid;
+import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -32,24 +41,68 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
     private final String TAG = "Test Client";
 
+    private final ParcelUuid UUID = ParcelUuid.fromString("0000ae8f-0000-1000-8000-123456789000");
+    private final int MSG_CONNECTION_STATE_CALLBACK     = 1;
+    private final int MSG_SERVICE_DISCOVERED_CALLABCK   = 2;
+
+
     private Context             mContext;
     private BluetoothAdapter    mAdapter;
     private BluetoothLeScanner  mScanner;
 
     private boolean             mScanning;
 
+    private static BluetoothGatt    mGatt;
+
     private Map<Button, BluetoothDevice>        mScanResults;
     private Map<BluetoothDevice, ScanRecord>    mScanRecords;
+
+    private HandlerThread mHandlerThread;
+    private MsgHandler mHandler;
+
 
     /* UI items */
     Button btnStartScan;
     LinearLayout llScanResult;
+
+    void init() {
+        mContext = this;
+        mAdapter = BluetoothAdapter.getDefaultAdapter();
+        mScanner = mAdapter.getBluetoothLeScanner();
+        mScanResults = new HashMap<>();
+        mScanRecords = new HashMap<>();
+
+        mScanning = false;
+        if (mHandlerThread == null) {
+            mHandlerThread = new HandlerThread("handlerThread");
+            mHandlerThread.start();
+            mHandler = new MsgHandler(mHandlerThread.getLooper());
+        }
+    }
 
     void initView() {
         btnStartScan = (Button)findViewById(R.id.btn_startscan);
         btnStartScan.setOnClickListener(clStartScan);
 
         llScanResult = (LinearLayout)findViewById(R.id.ll_scanResult);
+    }
+
+    void startScan(boolean enable) {
+        if(enable) {
+            ScanSettings settings = new ScanSettings.Builder()
+                    .setLegacy(false)
+                    .build();
+
+            llScanResult.removeAllViews();
+            mScanResults.clear();
+            mScanner.startScan(null, settings, mScannerCallback);
+            mScanning = true;
+            btnStartScan.setText("stop Scan");
+        } else {
+            mScanner.stopScan(mScannerCallback);
+            btnStartScan.setText("start Scan");
+            mScanning = false;
+        }
     }
 
     View.OnClickListener clScanResult = new View.OnClickListener() {
@@ -60,10 +113,19 @@ public class MainActivity extends AppCompatActivity {
             ScanRecord record = mScanRecords.get(device);
 
             /* Demo to show how to get info from device record */
+            byte data[] = record.getServiceData(UUID);
             String text = "Name:" + record.getDeviceName() + "\r\n"
-                        + "Address:" + device.getAddress();
+                        + "Address:" + device.getAddress() + "\r\n"
+                        + "Service Data:\r\n"
+                        + (data == null ? "null" : new String(data));
             Toast toast = Toast.makeText(mContext, text, Toast.LENGTH_SHORT);
             toast.show();
+
+            if(mScanning)
+                startScan(false);
+
+
+            device.connectGatt(mContext, false, mConnectionCallback);
         }
     };
 
@@ -71,23 +133,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onClick(View view) {
             turnOnBluetooth();
-            Button btn = (Button)view;
-
-            if(mScanning) {
-                mScanner.stopScan(mScannerCallback);
-                btn.setText("start Scan");
-                mScanning = false;
-            } else {
-                ScanSettings settings = new ScanSettings.Builder()
-                        .setLegacy(false)
-                        .build();
-
-                llScanResult.removeAllViews();
-                mScanResults.clear();
-                mScanner.startScan(null, settings, mScannerCallback);
-                mScanning = true;
-                btn.setText("stop Scan");
-            }
+            startScan(!mScanning);
         }
     };
 
@@ -101,14 +147,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mContext = this;
-        mAdapter = BluetoothAdapter.getDefaultAdapter();
-        mScanner = mAdapter.getBluetoothLeScanner();
-        mScanResults = new HashMap<>();
-        mScanRecords = new HashMap<>();
-
-        mScanning = false;
-
+        //Initialize functionality
+        init();
         //Initialize UI
         initView();
 
@@ -147,6 +187,10 @@ public class MainActivity extends AppCompatActivity {
                     btn.setOnClickListener(clScanResult);
                     llScanResult.addView(btn);
 
+                    /* Highlight server app's advertising */
+                    if(result.getScanRecord().getServiceData(UUID) != null)
+                        btn.setTextColor(Color.RED);
+
                     /* Save scanRecord and device info */
                     mScanResults.put(btn, device);
                     mScanRecords.put(device, result.getScanRecord());
@@ -183,6 +227,58 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private void handleConnectionCallback(BluetoothGatt gatt) {
+        Log.d(TAG, "handleConnectionCallback");
+
+        BluetoothDevice device = gatt.getDevice();
+        BluetoothManager manager = (BluetoothManager)getSystemService(BLUETOOTH_SERVICE);
+        int state = manager.getConnectionState(device, BluetoothProfile.GATT);
+
+        String text = device.getAddress() + " connection state: " + state;
+        Toast toast = Toast.makeText(mContext, text, Toast.LENGTH_SHORT);
+        toast.show();
+
+        if (state == BluetoothGatt.STATE_CONNECTED)
+            gatt.discoverServices();
+    }
+
+    private void handleServiceDiscovered(BluetoothGatt gatt) {
+        mGatt = gatt;
+
+        String text = gatt.getDevice().getAddress() + " service discovered," +
+                "service:\r\n" + gatt.getServices();
+        /*Toast toast = Toast.makeText(mContext, text, Toast.LENGTH_SHORT);
+        toast.show();*/
+
+        Log.d(TAG, text);
+
+        Intent intent = new Intent(this, ConnectedDeviceActivity.class);
+        startActivity(intent);
+
+    }
+
+    private class MsgHandler extends Handler {
+        public MsgHandler (Looper loop) {
+            super(loop);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            Log.d(TAG, "handleMessage: " + msg.what);
+
+            switch (msg.what) {
+                case MSG_CONNECTION_STATE_CALLBACK:
+                    handleConnectionCallback((BluetoothGatt)msg.obj);
+                    break;
+                case MSG_SERVICE_DISCOVERED_CALLABCK:
+                    handleServiceDiscovered((BluetoothGatt)msg.obj);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
     BluetoothGattCallback mConnectionCallback = new BluetoothGattCallback() {
         @Override
         public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
@@ -197,11 +293,23 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             super.onConnectionStateChange(gatt, status, newState);
+            Log.d(TAG, "onConnectionStateChange, state=" + newState);
+            Message msg = mHandler.obtainMessage(
+                    MSG_CONNECTION_STATE_CALLBACK, gatt);
+            mHandler.sendMessage(msg);
         }
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             super.onServicesDiscovered(gatt, status);
+            Log.d(TAG, "onServicesDiscovered, status:" + status);
+            if(status == BluetoothGatt.GATT_SUCCESS) {
+                Message msg = mHandler.obtainMessage(
+                        MSG_SERVICE_DISCOVERED_CALLABCK, gatt);
+                mHandler.sendMessage(msg);
+            } else {
+                mGatt.disconnect();
+            }
         }
 
         @Override
@@ -244,4 +352,8 @@ public class MainActivity extends AppCompatActivity {
             super.onMtuChanged(gatt, mtu, status);
         }
     };
+
+    public static BluetoothGatt getGatt () {
+        return mGatt;
+    }
 }
