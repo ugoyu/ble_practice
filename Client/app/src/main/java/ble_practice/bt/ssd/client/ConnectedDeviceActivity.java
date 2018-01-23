@@ -17,12 +17,14 @@ public class ConnectedDeviceActivity extends AppCompatActivity {
     private List<BluetoothGattService> mGattServices;
 
     LinearLayout mLlOverView;
+    ConnectionHandler mConnectionHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_connected_device);
-        mGatt = MainActivity.getGatt();
+        mConnectionHandler = MainActivity.getConnectionHandler();
+        mGatt = mConnectionHandler.getGatt();
         mDevice = mGatt.getDevice();
         mGattServices = mGatt.getServices();
 

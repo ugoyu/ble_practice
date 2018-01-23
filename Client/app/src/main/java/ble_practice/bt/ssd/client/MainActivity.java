@@ -2,32 +2,22 @@ package ble_practice.bt.ssd.client;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
-import android.content.Intent;
+
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.os.HandlerThread;
-import android.os.Looper;
-import android.os.Message;
 import android.os.ParcelUuid;
-import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -39,45 +29,38 @@ import java.util.List;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
-    private final String TAG = "Test Client";
+    public static final String TAG = "Test Client";
 
     private final ParcelUuid UUID = ParcelUuid.fromString("0000ae8f-0000-1000-8000-123456789000");
-    private final int MSG_CONNECTION_STATE_CALLBACK     = 1;
-    private final int MSG_SERVICE_DISCOVERED_CALLABCK   = 2;
-
 
     private Context             mContext;
+    private BluetoothManager    mManager;
     private BluetoothAdapter    mAdapter;
     private BluetoothLeScanner  mScanner;
 
     private boolean             mScanning;
 
-    private static BluetoothGatt    mGatt;
-
     private Map<Button, BluetoothDevice>        mScanResults;
     private Map<BluetoothDevice, ScanRecord>    mScanRecords;
 
-    private HandlerThread mHandlerThread;
-    private MsgHandler mHandler;
-
+    private static ConnectionHandler    mConnectionHandler;
 
     /* UI items */
     Button btnStartScan;
     LinearLayout llScanResult;
 
     void init() {
+
         mContext = this;
-        mAdapter = BluetoothAdapter.getDefaultAdapter();
+        mConnectionHandler = new ConnectionHandler(this);
+        mConnectionHandler.initConnectionHandler();
+        mManager = mConnectionHandler.getManager();
+        mAdapter = mConnectionHandler.getAdapter();
         mScanner = mAdapter.getBluetoothLeScanner();
         mScanResults = new HashMap<>();
         mScanRecords = new HashMap<>();
 
         mScanning = false;
-        if (mHandlerThread == null) {
-            mHandlerThread = new HandlerThread("handlerThread");
-            mHandlerThread.start();
-            mHandler = new MsgHandler(mHandlerThread.getLooper());
-        }
     }
 
     void initView() {
@@ -85,6 +68,10 @@ public class MainActivity extends AppCompatActivity {
         btnStartScan.setOnClickListener(clStartScan);
 
         llScanResult = (LinearLayout)findViewById(R.id.ll_scanResult);
+    }
+
+    public static ConnectionHandler getConnectionHandler () {
+        return mConnectionHandler;
     }
 
     void startScan(boolean enable) {
@@ -124,8 +111,7 @@ public class MainActivity extends AppCompatActivity {
             if(mScanning)
                 startScan(false);
 
-
-            device.connectGatt(mContext, false, mConnectionCallback);
+            mConnectionHandler.connectGatt(device, false);
         }
     };
 
@@ -226,134 +212,4 @@ public class MainActivity extends AppCompatActivity {
             super.onScanFailed(errorCode);
         }
     };
-
-    private void handleConnectionCallback(BluetoothGatt gatt) {
-        Log.d(TAG, "handleConnectionCallback");
-
-        BluetoothDevice device = gatt.getDevice();
-        BluetoothManager manager = (BluetoothManager)getSystemService(BLUETOOTH_SERVICE);
-        int state = manager.getConnectionState(device, BluetoothProfile.GATT);
-
-        String text = device.getAddress() + " connection state: " + state;
-        Toast toast = Toast.makeText(mContext, text, Toast.LENGTH_SHORT);
-        toast.show();
-
-        if (state == BluetoothGatt.STATE_CONNECTED)
-            gatt.discoverServices();
-    }
-
-    private void handleServiceDiscovered(BluetoothGatt gatt) {
-        mGatt = gatt;
-
-        String text = gatt.getDevice().getAddress() + " service discovered," +
-                "service:\r\n" + gatt.getServices();
-        /*Toast toast = Toast.makeText(mContext, text, Toast.LENGTH_SHORT);
-        toast.show();*/
-
-        Log.d(TAG, text);
-
-        Intent intent = new Intent(this, ConnectedDeviceActivity.class);
-        startActivity(intent);
-
-    }
-
-    private class MsgHandler extends Handler {
-        public MsgHandler (Looper loop) {
-            super(loop);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            Log.d(TAG, "handleMessage: " + msg.what);
-
-            switch (msg.what) {
-                case MSG_CONNECTION_STATE_CALLBACK:
-                    handleConnectionCallback((BluetoothGatt)msg.obj);
-                    break;
-                case MSG_SERVICE_DISCOVERED_CALLABCK:
-                    handleServiceDiscovered((BluetoothGatt)msg.obj);
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-
-    BluetoothGattCallback mConnectionCallback = new BluetoothGattCallback() {
-        @Override
-        public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
-            super.onPhyUpdate(gatt, txPhy, rxPhy, status);
-        }
-
-        @Override
-        public void onPhyRead(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
-            super.onPhyRead(gatt, txPhy, rxPhy, status);
-        }
-
-        @Override
-        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            super.onConnectionStateChange(gatt, status, newState);
-            Log.d(TAG, "onConnectionStateChange, state=" + newState);
-            Message msg = mHandler.obtainMessage(
-                    MSG_CONNECTION_STATE_CALLBACK, gatt);
-            mHandler.sendMessage(msg);
-        }
-
-        @Override
-        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            super.onServicesDiscovered(gatt, status);
-            Log.d(TAG, "onServicesDiscovered, status:" + status);
-            if(status == BluetoothGatt.GATT_SUCCESS) {
-                Message msg = mHandler.obtainMessage(
-                        MSG_SERVICE_DISCOVERED_CALLABCK, gatt);
-                mHandler.sendMessage(msg);
-            } else {
-                mGatt.disconnect();
-            }
-        }
-
-        @Override
-        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            super.onCharacteristicRead(gatt, characteristic, status);
-        }
-
-        @Override
-        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            super.onCharacteristicWrite(gatt, characteristic, status);
-        }
-
-        @Override
-        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-            super.onCharacteristicChanged(gatt, characteristic);
-        }
-
-        @Override
-        public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            super.onDescriptorRead(gatt, descriptor, status);
-        }
-
-        @Override
-        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            super.onDescriptorWrite(gatt, descriptor, status);
-        }
-
-        @Override
-        public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
-            super.onReliableWriteCompleted(gatt, status);
-        }
-
-        @Override
-        public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
-            super.onReadRemoteRssi(gatt, rssi, status);
-        }
-
-        @Override
-        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
-            super.onMtuChanged(gatt, mtu, status);
-        }
-    };
-
-    public static BluetoothGatt getGatt () {
-        return mGatt;
-    }
 }
