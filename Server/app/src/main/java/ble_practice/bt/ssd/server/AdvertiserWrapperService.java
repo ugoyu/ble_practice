@@ -26,13 +26,16 @@ import android.os.IBinder;
 import android.os.ParcelUuid;
 import android.util.Log;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Created by root on 2018/1/19.
  */
 
 public class AdvertiserWrapperService extends Service {
 
-    public final ParcelUuid UUID = ParcelUuid.fromString("0000ae8f-0000-1000-8000-123456789000");
+    public final ParcelUuid TEXT_UUID = ParcelUuid.fromString("0000ae8f-0000-1000-8000-123456789000");
 
     private final String LOG_TAG = "AdvertiserWrapperService";
     final BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -44,9 +47,6 @@ public class AdvertiserWrapperService extends Service {
 
     boolean mAdvertising = false;
 
-
-
-
     @Override
     public void onCreate() {
         Log.d(LOG_TAG, "onCreate()");
@@ -54,7 +54,6 @@ public class AdvertiserWrapperService extends Service {
         mBluetoothLeAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
         BluetoothManager manager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
         mBluetootGattServer =  manager.openGattServer(this, mGattServerCallback);
-
     }
 
     @Override
@@ -64,12 +63,57 @@ public class AdvertiserWrapperService extends Service {
         mBluetoothLeAdvertiser = null;
     }
 
-
-
-
     public void setEventListener(AdvertiserEventListener eventListener) {
         mEventListener = eventListener;
     }
+
+    void testC() {
+        Log.d(LOG_TAG, "OWO test");
+
+        BluetoothGattCharacteristic characteristic1 = new BluetoothGattCharacteristic(
+                java.util.UUID.fromString("0000ccc1-0000-1000-8000-00805f9b34fb"),
+                BluetoothGattCharacteristic.PROPERTY_READ,
+                BluetoothGattCharacteristic.PERMISSION_READ);
+
+        BluetoothGattCharacteristic characteristic2 = new BluetoothGattCharacteristic(
+                java.util.UUID.fromString("0000ccc2-0000-1000-8000-00805f9b34fb"),
+                BluetoothGattCharacteristic.PROPERTY_WRITE|BluetoothGattCharacteristic.PROPERTY_READ,
+                BluetoothGattCharacteristic.PERMISSION_WRITE|BluetoothGattCharacteristic.PERMISSION_READ);
+
+        BluetoothGattService service1 = new BluetoothGattService(java.util.UUID.fromString("0000ccc0-0000-1000-8000-00805f9b34fb"),
+                BluetoothGattService.SERVICE_TYPE_PRIMARY);
+
+        BluetoothGattService service2 = new BluetoothGattService(java.util.UUID.fromString("0000ccc0-0000-1000-8000-00805f9b34fc"),
+                BluetoothGattService.SERVICE_TYPE_PRIMARY);
+
+        service1.addCharacteristic(characteristic1);
+        service2.addCharacteristic(characteristic2);
+
+
+        mBluetootGattServer.addService(service1);
+
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        mBluetootGattServer.addService(service2);
+
+
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        List<BluetoothGattService> services = mBluetootGattServer.getServices();
+
+        if (services.size() > 0) {
+            Log.d(LOG_TAG, services.get(0).getUuid() + "");
+            //Log.d(LOG_TAG, services.get(1).getUuid() + "");
+        }
+    }
+
     public boolean isAdvertising() { return mAdvertising; }
     public void startAdvertising() {}
     public void stopAdvertising() {}
@@ -91,7 +135,8 @@ public class AdvertiserWrapperService extends Service {
         byte data[] = "TED".getBytes();
         AdvertiseData.Builder mDataBuilder = new AdvertiseData.Builder();
         mDataBuilder.setIncludeDeviceName(true);
-        mDataBuilder.addServiceData(UUID, data);
+        mDataBuilder.addServiceData(TEXT_UUID, data);
+
         return mDataBuilder.build();
     }
 
@@ -109,7 +154,6 @@ public class AdvertiserWrapperService extends Service {
     }
 
     public void startAdvertisingSet() {
-
         mBluetoothLeAdvertiser.startAdvertisingSet(
                 createAdvertisingSetPararmeters(true),
                 creatAdvertiseData(),
@@ -124,7 +168,6 @@ public class AdvertiserWrapperService extends Service {
         mBluetoothLeAdvertiser.stopAdvertisingSet(mAdvertiseSetCallback);
     }
 
-
     private BluetoothGattServerCallback mGattServerCallback = new BluetoothGattServerCallback() {
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
@@ -132,29 +175,37 @@ public class AdvertiserWrapperService extends Service {
             super.onConnectionStateChange(device, status, newState);
             mConnectionState = newState;
             mConnectedDevice = device;
-            mEventListener.onConnectStateChanged(mConnectedDevice, mConnectionState);
-
-
+            if (mEventListener != null) {
+                mEventListener.onConnectStateChanged(mConnectedDevice, mConnectionState);
+            }
         }
 
         @Override
         public void onServiceAdded(int status, BluetoothGattService service) {
             super.onServiceAdded(status, service);
+            Log.d(LOG_TAG, "status:" + status + "onServiceAdded" + service.getUuid());
         }
 
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
+            Log.d(LOG_TAG, " onCharacteristicReadRequest requestId:" + requestId + " offset:" + offset + " characteristic:" + characteristic.getUuid().toString());
+
+            mBluetootGattServer.sendResponse(device, requestId, 0, offset, "Hello".getBytes());
+
         }
 
         @Override
         public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
             super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value);
+            Log.e(LOG_TAG, " onCharacteristicWriteRequest requestId:" + requestId + " preparedWrite:" + preparedWrite + " responseNeeded:" + responseNeeded + " offset:" + offset + " value:" + new String(value) + " characteristic:" + characteristic.getUuid().toString());
         }
 
         @Override
         public void onDescriptorReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattDescriptor descriptor) {
             super.onDescriptorReadRequest(device, requestId, offset, descriptor);
+
+
         }
 
         @Override

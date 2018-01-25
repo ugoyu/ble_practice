@@ -17,16 +17,12 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
-
 public class MainActivity extends AppCompatActivity
         implements AdvertiserWrapperService.AdvertiserEventListener {
 
-
     private static final String LOG_TAG = "ted_log";
 
-
     Button btn_adv;
-
 
     AdvertiserWrapperService mAdvertiserWrapper;
 
@@ -59,6 +55,7 @@ public class MainActivity extends AppCompatActivity
             Log.d(LOG_TAG, "AdvertiserWrapperService connected");
             mAdvertiserWrapper = ((AdvertiserWrapperService.LocalBinder) iBinder).getService();
             mAdvertiserWrapper.setEventListener(MainActivity.this);
+            mAdvertiserWrapper.testC();
         }
 
         @Override
@@ -66,9 +63,6 @@ public class MainActivity extends AppCompatActivity
             mAdvertiserWrapper = null;
         }
     };
-
-
-
 
 
     void findView() {
@@ -94,15 +88,14 @@ public class MainActivity extends AppCompatActivity
 
     }
 
-
     @Override
     public void onAdvertisingStateChanged(boolean state) {
         btn_adv.setText(state ? "stop" : "start");
+       // mAdvertiserWrapper.testC();
     }
 
     @Override
     public void onConnectStateChanged(BluetoothDevice device, int connectionState) {
-
-
+        Log.d(LOG_TAG, "onConnectStateChanged: " + connectionState);
     }
 }
