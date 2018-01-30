@@ -6,12 +6,15 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.util.List;
+import java.util.UUID;
 
 public class ConnectedDeviceActivity extends AppCompatActivity {
+    public static final UUID ALERT_LEVEL = UUID.fromString("00002a06-0000-1000-8000-00805f9b34fb");
     private BluetoothGatt       mGatt;
     private BluetoothDevice     mDevice;
     private List<BluetoothGattService> mGattServices;
@@ -84,8 +87,16 @@ public class ConnectedDeviceActivity extends AppCompatActivity {
                     parseStringToLL("       Characteristics:");
                 }
                 parseStringToLL("       " + charList.get(j).getUuid());
+                if(charList.get(j).getUuid().equals(ALERT_LEVEL)) {
+                    BluetoothGattCharacteristic alertLevel = charList.get(j);
+                    byte[] value = {0x02};
+                    alertLevel.setValue(value);
+                    mGatt.writeCharacteristic(alertLevel);
+                }
+
             }
             parseStringToLL("--------------------------------------------------------------------");
         }
+
     }
 }

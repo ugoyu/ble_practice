@@ -161,6 +161,7 @@ public class ConnectionHandler {
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
+            Log.d("TED_LOG", "onCharacteristicWrite");
         }
 
         @Override
